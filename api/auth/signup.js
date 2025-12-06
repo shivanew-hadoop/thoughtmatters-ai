@@ -1,55 +1,45 @@
+// /api/auth/signup.js
 import { supabaseAnon, supabaseAdmin } from "../../_utils/supabaseClient.js";
+
+export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
   try {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    if (req.method !== "POST")
+      return res.status(405).json({ error: "Method not allowed" });
 
-    const { email, password, name, phone } = req.body || {};
-    if (!email || !password || !name || !phone) {
+    const { name, phone, email, password } = req.body || {};
+
+    if (!name || !email || !password)
       return res.status(400).json({ error: "Missing required fields" });
-    }
 
-    const origin = req.headers.origin || "https://thoughtmatters-ai.vercel.app";
-
+    // 1. Create user in Supabase Auth
     const sb = supabaseAnon();
-    const { data, error } = await sb.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name, phone },
-        emailRedirectTo: `${origin}/auth?tab=login`
-      }
-    });
+    const { data, error } = await sb.auth.signUp({ email, password });
 
     if (error) return res.status(400).json({ error: error.message });
 
-    const user = data?.user || null;
-    const session = data?.session || null;
+    const user_id = data.user.id;
 
-    // create user_profiles row (service role)
-    if (user?.id) {
-      const admin = supabaseAdmin();
-      const { error: upsertErr } = await admin
-        .from("user_profiles")
-        .upsert(
-          {
-            id: user.id,
-            name,
-            phone,
-            credits: 0,
-            approved: false
-          },
-          { onConflict: "id" }
-        );
+    // 2. Insert profile into user_profiles
+    const admin = supabaseAdmin();
+    const { error: insertErr } = await admin.from("user_profiles").insert({
+      id: user_id,
+      name,
+      phone,
+      email,
+      approved: false,
+      credits: 0,
+    });
 
-      if (upsertErr) {
-        // still allow signup; but return error to fix schema/policy
-        return res.status(500).json({ error: `user_profiles upsert failed: ${upsertErr.message}` });
-      }
-    }
+    if (insertErr)
+      return res.status(400).json({ error: insertErr.message });
 
-    return res.status(200).json({ user, session });
+    return res.status(200).json({
+      ok: true,
+      message: "Account created. Waiting for admin approval.",
+    });
   } catch (e) {
-    return res.status(500).json({ error: e.message || "Signup crashed" });
+    return res.status(500).json({ error: e.message });
   }
 }

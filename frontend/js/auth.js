@@ -1,15 +1,70 @@
-// frontend/js/auth.js
+// ===============================
+// ELEMENTS
+// ===============================
+const statusBox = document.getElementById("statusBox");
 
-const msg = document.getElementById("msg"); // ensure <p id="msg"></p> exists in auth.html
+const loginForm = document.getElementById("loginForm");
+const signupForm = document.getElementById("signupForm");
+const forgotForm = document.getElementById("forgotForm");
 
+const tabLogin = document.getElementById("tabLogin");
+const tabSignup = document.getElementById("tabSignup");
+const tabForgot = document.getElementById("tabForgot");
+
+// ===============================
+// STATUS MESSAGES
+// ===============================
 function showMsg(text, isError = false) {
-  if (!msg) return;
-  msg.textContent = text;
-  msg.className = isError
-    ? "text-sm text-red-600 mt-2"
-    : "text-sm text-green-700 mt-2";
+  statusBox.textContent = text;
+  statusBox.className = isError
+    ? "text-sm text-red-600 mb-4"
+    : "text-sm text-green-700 mb-4";
+  statusBox.classList.remove("hidden");
 }
 
+function clearMsg() {
+  statusBox.classList.add("hidden");
+  statusBox.textContent = "";
+}
+
+// ===============================
+// TAB HANDLING
+// ===============================
+function showTab(tab) {
+  clearMsg();
+
+  loginForm.classList.add("hidden");
+  signupForm.classList.add("hidden");
+  forgotForm.classList.add("hidden");
+
+  tabLogin.classList.remove("border-blue-700", "text-blue-700");
+  tabSignup.classList.remove("border-blue-700", "text-blue-700");
+  tabForgot.classList.remove("border-blue-700", "text-blue-700");
+
+  if (tab === "login") {
+    loginForm.classList.remove("hidden");
+    tabLogin.classList.add("border-b-2", "border-blue-700", "text-blue-700");
+  }
+  if (tab === "signup") {
+    signupForm.classList.remove("hidden");
+    tabSignup.classList.add("border-b-2", "border-blue-700", "text-blue-700");
+  }
+  if (tab === "forgot") {
+    forgotForm.classList.remove("hidden");
+    tabForgot.classList.add("border-b-2", "border-blue-700", "text-blue-700");
+  }
+}
+
+tabLogin.onclick = () => showTab("login");
+tabSignup.onclick = () => showTab("signup");
+tabForgot.onclick = () => showTab("forgot");
+
+// default tab
+showTab("login");
+
+// ===============================
+// API HELPER
+// ===============================
 async function postJSON(url, body) {
   const res = await fetch(url, {
     method: "POST",
@@ -20,102 +75,99 @@ async function postJSON(url, body) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    // show backend error if present
-    throw new Error(data?.error || `Request failed: ${res.status}`);
+    throw new Error(data?.error || `Request failed (${res.status})`);
   }
-
   return data;
 }
 
-function getVal(id) {
-  const el = document.getElementById(id);
-  return el ? (el.value || "").trim() : "";
+function val(id) {
+  return (document.getElementById(id)?.value || "").trim();
 }
 
-// --------------------------
+// ===============================
 // LOGIN
-// --------------------------
-document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+// ===============================
+loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    const email = getVal("loginEmail");
-    const password = document.getElementById("loginPassword")?.value || "";
+    clearMsg();
 
-    if (!email || !password) {
-      showMsg("Enter email and password.", true);
-      return;
-    }
+    const email = val("loginEmail");
+    const password = val("loginPassword");
+
+    if (!email || !password) return showMsg("Enter email & password", true);
 
     showMsg("Signing in...");
+
     const data = await postJSON("/api/auth/login", { email, password });
 
-    if (!data?.session) throw new Error("Invalid login response (no session).");
+    if (!data.session) throw new Error("Invalid session response");
 
-    // store session
     localStorage.setItem("session", JSON.stringify(data.session));
 
-    // ✅ IMPORTANT: route by role
-    const isAdmin = !!data.session.is_admin;
+    const isAdmin = data.session?.is_admin === true;
 
     showMsg("Login successful. Redirecting...");
+
     window.location.href = isAdmin ? "/admin" : "/app";
   } catch (err) {
-    showMsg(err?.message || String(err), true);
+    showMsg(err.message, true);
   }
 });
 
-// --------------------------
+// ===============================
 // SIGNUP
-// --------------------------
-document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
+// ===============================
+signupForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    const name = getVal("signupName");
-    const phone = getVal("signupPhone");
-    const email = getVal("signupEmail");
-    const password = document.getElementById("signupPassword")?.value || "";
-    const confirm = document.getElementById("signupConfirm")?.value || "";
+    clearMsg();
+
+    const name = val("signupName");
+    const phone = val("signupPhone");
+    const email = val("signupEmail");
+    const password = val("signupPassword");
 
     if (!name || !email || !password) {
-      throw new Error("Please fill all required fields.");
-    }
-    if (password !== confirm) {
-      throw new Error("Passwords do not match.");
+      return showMsg("Fill all required fields.", true);
     }
 
     showMsg("Creating account...");
-    await postJSON("/api/auth/signup", { name, phone, email, password });
+
+    await postJSON("/api/auth/signup", {
+      name,
+      phone,
+      email,
+      password,
+    });
 
     showMsg(
-      "Account created. Waiting for admin approval. You can log in after approval."
+      "Account created. Waiting for admin approval. Try logging in after approval."
     );
 
-    // optional: clear fields
-    // document.getElementById("signupForm").reset();
-    // optional: switch to login tab (only if you have a function)
-    // openTab("login");
+    showTab("login");
   } catch (err) {
-    showMsg(err?.message || String(err), true);
+    showMsg(err.message, true);
   }
 });
 
-// --------------------------
-// FORGOT PASSWORD
-// --------------------------
-document.getElementById("forgotForm")?.addEventListener("submit", async (e) => {
+// ===============================
+// FORGOT
+// ===============================
+forgotForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    const email = getVal("forgotEmail");
-    if (!email) {
-      showMsg("Enter your email.", true);
-      return;
-    }
+    clearMsg();
+
+    const email = val("forgotEmail");
+    if (!email) return showMsg("Enter email", true);
 
     showMsg("Sending reset link...");
+
     await postJSON("/api/auth/recover", { email });
 
-    showMsg("Reset link sent (check inbox/spam).");
+    showMsg("Reset link sent. Check your inbox/spam.");
   } catch (err) {
-    showMsg(err?.message || String(err), true);
+    showMsg(err.message, true);
   }
 });
