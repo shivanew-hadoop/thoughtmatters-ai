@@ -1,7 +1,7 @@
 {
   "version": 2,
   "cleanUrls": true,
-  
+
   "routes": [
     {
       "src": "^/$",
@@ -24,4 +24,4 @@
       "dest": "/frontend/js/$1"
     }
   ]
-}
+
