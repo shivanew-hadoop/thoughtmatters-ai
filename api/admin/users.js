@@ -1,20 +1,23 @@
-export const config = { runtime: "edge" };
+import { supabaseAdmin } from "../_utils/supabaseClient.js";
 
-import { supabaseAdmin } from "../../_utils/supabaseClient.js";
+export const config = { runtime: "nodejs" };
 
-export default async function handler(req) {
-  const token = req.headers.get("authorization");
+export default async function handler(req, res) {
+  try {
+    if (req.method !== "GET") 
+      return res.status(405).json({ error: "Method not allowed" });
 
-  if (!token?.includes("ADMIN_STATIC_TOKEN")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403 });
+    const sb = supabaseAdmin();
+
+    const { data, error } = await sb
+      .from("user_profiles")
+      .select("user_id,name,email,phone,approved,credits,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    return res.json({ users: data });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
-
-  const supabase = supabaseAdmin();
-
-  const { data } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  return new Response(JSON.stringify(data), { status: 200 });
 }

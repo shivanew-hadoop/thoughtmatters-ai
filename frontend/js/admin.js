@@ -15,8 +15,11 @@ const logoutBtn = document.getElementById("logoutBtn");
 const searchBox = document.getElementById("searchBox");
 
 const session = JSON.parse(localStorage.getItem("session") || "null");
-if (!session) window.location.href = "/auth";
-if (!session.is_admin) window.location.href = "/app";
+
+if (!session || !session.is_admin) {
+  window.location.href = "/auth";
+}
+
 
 
 function getToken() {
